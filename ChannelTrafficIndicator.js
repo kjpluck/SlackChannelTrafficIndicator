@@ -1,18 +1,27 @@
 
 var maxWidth = 201;
 var maxHeight = 20;
-var theDot = '-webkit-radial-gradient(center, ellipse, rgba(255, 0, 0, 1) 40%,transparent 41%,transparent 100%)';
 
 
-var timeInSeconds;
-var twoHundredMinutesAgo;
 var timeInMinutes;
 
 var channelListLoaded = false;
 var channelList;
 
+var slackToken;
+var slackTokenAlerted = localStorage["slack_token_alerted"];
 
 var observer = new WebKitMutationObserver   (function(mutations) {
+
+	if(!slackToken && !slackTokenAlerted){
+		alert("No Slack Api Token set for the Traffic Indicator extension.\nPlease go to the extensions page to set options.");
+		localStorage["slack_token_alerted"] = true;
+	}
+
+	if(!slackToken)
+		return;
+
+
 	if(!channelListLoaded)
 	{
 		loadChannelList();
@@ -21,7 +30,9 @@ var observer = new WebKitMutationObserver   (function(mutations) {
 	checkTraffic();
 });
 
-
+chrome.runtime.sendMessage({method: "getLocalStorage", key: "slack_token"}, function(response) {
+  slackToken = response.data;
+});
 
 observer.observe(document.getElementById("channel-list"), {childList: true,subtree : true});
 window.setInterval(checkTraffic, 60000);
@@ -34,8 +45,14 @@ function loadChannelList(){
 	channelList = [];
 	
 	$.getJSON(
-		'https://slack.com/api/channels.list?token=xoxp-2151799067-2151799647-2212805923-0dbbdb',
+		'https://slack.com/api/channels.list?token=' + slackToken,
 		function(data){
+
+			if(!data.channels){
+				alert("Slack Traffic Indicator failed to load channels using the api token '"+slackToken+"'.\nPlease check your token in the extensions page");
+				return;
+			}
+
 			data.channels.forEach(function(channel){
 				if(channel.is_member){
 					channelList.push(channel.id);
@@ -43,7 +60,7 @@ function loadChannelList(){
 			});
 			channelListLoaded = true;
 		}
-	)
+	);
 }
 
 function checkTraffic(){
@@ -53,8 +70,8 @@ function checkTraffic(){
 		return;
 	}
 
-	timeInSeconds = Math.round(new Date().getTime()/1000);
-	twoHundredMinutesAgo = timeInSeconds - (60 * 200);
+	var timeInSeconds = Math.round(new Date().getTime()/1000);
+	var twoHundredMinutesAgo = timeInSeconds - (60 * 200);
 	timeInMinutes = (timeInSeconds - (timeInSeconds % 60)) / 60;
 
 	console.log("Plotting traffic");
@@ -64,7 +81,7 @@ function checkTraffic(){
 
 		
 		$.getJSON(
-			"https://slack.com/api/channels.history?token=xoxp-2151799067-2151799647-2212805923-0dbbdb&channel=" + channel + "&oldest=" + twoHundredMinutesAgo,
+			"https://slack.com/api/channels.history?token="+ slackToken +"&channel=" + channel + "&oldest=" + twoHundredMinutesAgo,
 			function(data){
 				plotTraffic(channelNameElement, makeHistogram(data));
 			}
@@ -89,8 +106,11 @@ function makeHistogram(data){
 }
 
 function plotTraffic(element, data){
-
+	
 	// Horrible, horrible css hack.  Avert your eyes!
+
+	var theDot = '-webkit-radial-gradient(center, ellipse, rgba(255, 0, 0, 1) 40%,transparent 41%,transparent 100%)';
+
 	var theStyle = 'background: ';
 	var xPos = maxWidth;
 

@@ -3,12 +3,17 @@
   "version": "1.0",
   "manifest_version": 2,
   "description": "Displays messages as dots in channel name background.",
+  "options_page": "options.html",
   "content_scripts": [
     {
       "matches": ["https://*.slack.com/messages/*"],
       "js":      ["ChannelTrafficIndicator.js", "jquery-2.1.0.min.js"]
     }
   ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+    },
   "permissions": [
     "tabs","https://*.slack.com/messages/*"
   ]
